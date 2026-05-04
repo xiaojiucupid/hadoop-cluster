@@ -6,11 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="ac62948f-444d-49c4-9aad-3f1431b8e8c5" name="Changes" comment="feat:mysql upadate">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/doc/datasource/comment.csv" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/doc/datasource/movies.csv" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/doc/datasource/person.csv" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/doc/datasource/ratings.csv" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/doc/datasource/users.csv" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/resources/application.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -119,7 +115,7 @@
       <workItem from="1777731138278" duration="133000" />
       <workItem from="1777732507076" duration="135000" />
       <workItem from="1777778801120" duration="8305000" />
-      <workItem from="1777859495937" duration="2123000" />
+      <workItem from="1777859495937" duration="4210000" />
     </task>
     <task id="LOCAL-00001" summary="feat:init">
       <option name="closed" value="true" />

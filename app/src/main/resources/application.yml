@@ -7,9 +7,9 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     # 根据你的虚拟机或本机 MySQL 地址修改连接信息。
-    url: jdbc:mysql://localhost:3306/movie_analytics?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    url: jdbc:mysql://139.155.136.111:13306/movie_analytics?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
     username: root
-    password: root
+    password: 123456
 
 mybatis-plus:
   configuration:
