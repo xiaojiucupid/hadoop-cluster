@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlDialectMappings">
+    <file url="file://$PROJECT_DIR$/doc/mysql/init_group_buy_tables.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/doc/mysql/init_movie_analytics.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/doc/mysql/load_movie_analytics.sql" dialect="MySQL" />
+  </component>
+</project>
