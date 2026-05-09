@@ -21,7 +21,7 @@ mybatis-plus:
 movie:
   hadoop:
     # 根据你的虚拟机 Hadoop 集群地址修改 NameNode URI。
-    hdfs-uri: hdfs://localhost:9000
+    hdfs-uri: hdfs://139.155.136.111:9001
     # 原始影视数据目录。
     raw-data-path: /movie/raw
     # 清洗后影视数据目录。
