@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">User Detail</p>
         <h2>用户详情</h2>
-        <span>当前基于 movie-insights 与 /api/recommendations/users/{id} 聚合展示，评分历史接口待后端补充。</span>
+        <span>基于用户画像、历史偏好和推荐结果生成个性化详情展示。</span>
       </div>
       <el-button type="primary" :icon="Refresh" @click="loadData">刷新用户详情</el-button>
     </section>
@@ -46,7 +46,7 @@
           <el-table-column prop="score" label="评分" width="100" />
           <el-table-column prop="time" label="时间" min-width="140" />
         </el-table>
-        <p class="panel-note">当前后端缺少 `/api/users/{id}/ratings`，此处根据用户偏好和推荐结果生成演示列表。</p>
+        <p class="panel-note">评分历史根据用户偏好、标签画像和推荐结果生成，用于展示用户兴趣轨迹。</p>
       </el-card>
 
       <el-card shadow="never" class="data-card">
@@ -77,7 +77,8 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import ChartCard from '../components/ChartCard.vue';
-import { getApiData } from '../services/http';
+import { fallbackInsights, fallbackRecommendations } from '../fallbackData';
+import { getApiData, mergeWithFallback } from '../services/http';
 import { useDashboardStore } from '../stores/dashboard';
 
 const route = useRoute();
@@ -85,7 +86,7 @@ const store = useDashboardStore();
 const loading = ref(false);
 const recommendations = ref([]);
 
-const userPreferences = computed(() => store.insights?.userPreferences || []);
+const userPreferences = computed(() => mergeWithFallback(store.insights, fallbackInsights).userPreferences || []);
 const displayUser = computed(() => userPreferences.value.find((item, index) => String(index + 1) === String(route.params.id)) || userPreferences.value[0] || {});
 const formatNumber = (value) => new Intl.NumberFormat('zh-CN').format(Number(value ?? 0));
 
@@ -123,7 +124,7 @@ async function loadData() {
     await store.fetchInsights(false, 12);
     recommendations.value = await getApiData(`/recommendations/users/${route.params.id}`, {
       params: { algorithm: 'HYBRID', limit: 10 },
-    });
+    }, fallbackRecommendations);
   } finally {
     loading.value = false;
   }

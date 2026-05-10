@@ -85,15 +85,15 @@ public class MovieInsightController {
     }
 
     private List<MovieInsightDTO.NameValueDTO> buildRegionHeat(int limit) {
-        if (!tableExists("dim_movie")) {
+        if (!tableExists("bridge_movie_region")) {
             return List.of();
         }
         return jdbcTemplate.query(
                 """
-                SELECT region AS name, COUNT(*) AS value
-                FROM dim_movie
-                WHERE region IS NOT NULL AND region <> ''
-                GROUP BY region
+                SELECT region_name AS name, COUNT(DISTINCT movie_id) AS value
+                FROM bridge_movie_region
+                WHERE region_name IS NOT NULL AND region_name <> ''
+                GROUP BY region_name
                 ORDER BY value DESC
                 LIMIT ?
                 """,
@@ -176,7 +176,7 @@ public class MovieInsightController {
                       SELECT bmt.tag_name
                       FROM bridge_movie_tag bmt
                       JOIN fact_rating fr2 ON fr2.movie_id = bmt.movie_id
-                      WHERE fr2.user_id = fr.user_id
+                      WHERE fr2.user_md5 = fr.user_md5
                         AND fr2.rating >= 4
                         AND bmt.tag_name IS NOT NULL
                         AND bmt.tag_name <> ''
@@ -189,7 +189,7 @@ public class MovieInsightController {
         return jdbcTemplate.query(
                 """
                 SELECT
-                    COALESCE(u.user_md5, CAST(fr.user_id AS CHAR)) AS userKey,
+                    COALESCE(u.user_md5, fr.user_md5) AS userKey,
                     %s AS favoriteTag,
                     ROUND(AVG(fr.rating), 2) AS avgRating,
                     COUNT(*) AS ratingCount,
@@ -199,9 +199,9 @@ public class MovieInsightController {
                         ELSE '轻度用户'
                     END AS segment
                 FROM fact_rating fr
-                LEFT JOIN dim_user u ON u.user_id = fr.user_id
+                LEFT JOIN dim_user u ON u.user_md5 = fr.user_md5
                 WHERE fr.rating IS NOT NULL
-                GROUP BY fr.user_id, u.user_md5
+                GROUP BY fr.user_md5, u.user_md5
                 ORDER BY ratingCount DESC, avgRating DESC
                 LIMIT ?
                 """.formatted(favoriteTagSelect),

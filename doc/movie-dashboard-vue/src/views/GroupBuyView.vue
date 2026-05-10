@@ -77,10 +77,12 @@ import { computed, onMounted } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import ChartCard from '../components/ChartCard.vue';
 import MetricCard from '../components/MetricCard.vue';
+import { fallbackDashboard } from '../fallbackData';
+import { mergeWithFallback } from '../services/http';
 import { useDashboardStore } from '../stores/dashboard';
 
 const store = useDashboardStore();
-const dashboard = computed(() => store.dashboard || {});
+const dashboard = computed(() => mergeWithFallback(store.dashboard, fallbackDashboard));
 const summary = computed(() => dashboard.value.dashboardSummary || {});
 const groupTrend = computed(() => dashboard.value.groupTrend || []);
 const groupActivities = computed(() => dashboard.value.groupActivities || []);

@@ -9,8 +9,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -22,8 +20,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/movie-dashboard")
 public class MovieDashboardController {
-
-    private static final DateTimeFormatter MONTH_DAY = DateTimeFormatter.ofPattern("MM-dd");
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -50,9 +46,9 @@ public class MovieDashboardController {
         long ratingCount = countExistingTable("fact_rating");
         long commentCount = countExistingTable("fact_comment");
         BigDecimal revenue = decimalOrZero("""
-                SELECT COALESCE(SUM(pay_amount), 0)
+                SELECT COALESCE(SUM(payable_amount), 0)
                 FROM gb_trade_order
-                WHERE pay_status IN ('PAID', 'SUCCESS', '已支付', '支付成功')
+                WHERE order_status IN (1, 4)
                 """);
         BigDecimal successRate = buildSuccessRate();
         return new MovieDashboardDTO.DashboardSummaryDTO(movieCount, userCount, ratingCount, commentCount, revenue, successRate);
@@ -63,11 +59,13 @@ public class MovieDashboardController {
             return BigDecimal.ZERO;
         }
         BigDecimal success = decimalOrZero("""
-                SELECT COUNT(*)
+                SELECT COALESCE(SUM(success_group_count), 0)
                 FROM gb_group_snapshot
-                WHERE status IN ('SUCCESS', 'FINISHED', '成团', '已成团')
                 """);
-        BigDecimal total = decimalOrZero("SELECT COUNT(*) FROM gb_group_snapshot");
+        BigDecimal total = decimalOrZero("""
+                SELECT COALESCE(SUM(launched_group_count), 0)
+                FROM gb_group_snapshot
+                """);
         if (BigDecimal.ZERO.compareTo(total) == 0) {
             return BigDecimal.ZERO;
         }
@@ -111,15 +109,15 @@ public class MovieDashboardController {
     }
 
     private List<MovieDashboardDTO.NameValueDTO> buildRegionRanking() {
-        if (!tableExists("dim_movie")) {
+        if (!tableExists("bridge_movie_region")) {
             return List.of();
         }
         return jdbcTemplate.query(
                 """
-                SELECT region AS name, COUNT(*) AS value
-                FROM dim_movie
-                WHERE region IS NOT NULL AND region <> ''
-                GROUP BY region
+                SELECT region_name AS name, COUNT(DISTINCT movie_id) AS value
+                FROM bridge_movie_region
+                WHERE region_name IS NOT NULL AND region_name <> ''
+                GROUP BY region_name
                 ORDER BY value DESC
                 LIMIT 6
                 """,
@@ -134,19 +132,19 @@ public class MovieDashboardController {
         return jdbcTemplate.query(
                 """
                 SELECT
-                    DATE_FORMAT(created_at, '%m-%d') AS date,
-                    COUNT(*) AS groups,
-                    SUM(CASE WHEN status IN ('SUCCESS', 'FINISHED', '成团', '已成团') THEN 1 ELSE 0 END) AS success,
-                    COALESCE(SUM(pay_amount), 0) AS amount
+                    DATE_FORMAT(stat_date, '%m-%d') AS date,
+                    COALESCE(SUM(launched_group_count), 0) AS group_count,
+                    COALESCE(SUM(success_group_count), 0) AS success_count,
+                    COALESCE(SUM(paid_amount), 0) AS amount
                 FROM gb_group_snapshot
-                WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-                GROUP BY DATE(created_at), DATE_FORMAT(created_at, '%m-%d')
-                ORDER BY DATE(created_at)
+                WHERE stat_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                GROUP BY stat_date, DATE_FORMAT(stat_date, '%m-%d')
+                ORDER BY stat_date
                 """,
                 (rs, rowNum) -> new MovieDashboardDTO.GroupTrendDTO(
                         rs.getString("date"),
-                        rs.getLong("groups"),
-                        rs.getLong("success"),
+                        rs.getLong("group_count"),
+                        rs.getLong("success_count"),
                         rs.getBigDecimal("amount")
                 )
         );
@@ -164,10 +162,10 @@ public class MovieDashboardController {
                     COALESCE(m.douban_score, 0) AS score,
                     COALESCE(m.douban_votes, 0) AS votes,
                     COALESCE(GROUP_CONCAT(DISTINCT t.tag_name ORDER BY t.tag_name SEPARATOR ' / '), '-') AS genre,
-                    COALESCE(SUM(o.quantity), 0) AS sales
+                    COALESCE(COUNT(o.id), 0) AS sales
                 FROM dim_movie m
                 LEFT JOIN bridge_movie_tag t ON t.movie_id = m.movie_id
-                LEFT JOIN gb_trade_order o ON o.movie_id = m.movie_id
+                LEFT JOIN gb_trade_order o ON o.movie_id = m.movie_id AND o.order_status IN (1, 4)
                 WHERE m.name IS NOT NULL
                 GROUP BY m.movie_id, m.name, m.douban_score, m.douban_votes
                 ORDER BY score DESC, votes DESC, sales DESC
@@ -185,7 +183,7 @@ public class MovieDashboardController {
     }
 
     private List<MovieDashboardDTO.GroupActivityDTO> buildGroupActivities() {
-        if (!tableExists("gb_group_activity")) {
+        if (!tableExists("gb_activity")) {
             return List.of();
         }
         return jdbcTemplate.query(
@@ -193,17 +191,19 @@ public class MovieDashboardController {
                 SELECT
                     activity_no AS no,
                     activity_name AS name,
-                    CASE
-                        WHEN status IN ('ONLINE', 'RUNNING', '进行中') THEN '进行中'
-                        WHEN status IN ('PENDING', '待上线') THEN '待上线'
-                        ELSE status
+                    CASE activity_status
+                        WHEN 0 THEN '待上线'
+                        WHEN 1 THEN '进行中'
+                        WHEN 2 THEN '已结束'
+                        WHEN 3 THEN '已关闭'
+                        ELSE '未知'
                     END AS status,
                     group_price,
                     single_price,
-                    target_people,
-                    stock
-                FROM gb_group_activity
-                ORDER BY updated_at DESC, created_at DESC
+                    target_group_size,
+                    GREATEST(stock_total - stock_locked, 0) AS stock
+                FROM gb_activity
+                ORDER BY update_time DESC, create_time DESC
                 LIMIT 4
                 """,
                 (rs, rowNum) -> new MovieDashboardDTO.GroupActivityDTO(
@@ -212,7 +212,7 @@ public class MovieDashboardController {
                         rs.getString("status"),
                         rs.getBigDecimal("group_price"),
                         rs.getBigDecimal("single_price"),
-                        rs.getInt("target_people"),
+                        rs.getInt("target_group_size"),
                         rs.getInt("stock")
                 )
         );

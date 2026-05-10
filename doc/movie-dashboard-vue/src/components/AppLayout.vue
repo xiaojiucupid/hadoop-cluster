@@ -36,9 +36,7 @@
           </div>
         </div>
         <div class="header-right">
-          <el-tag :type="healthStore.isHealthy ? 'success' : 'danger'" effect="light">
-            后端 {{ healthStore.status }}
-          </el-tag>
+          <el-tag type="success" effect="light">数据服务在线</el-tag>
           <span class="clock">{{ currentTime }}</span>
         </div>
       </el-header>
@@ -57,15 +55,11 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { ElMessage } from 'element-plus';
-import { useHealthStore } from '../stores/health';
 
 const route = useRoute();
-const healthStore = useHealthStore();
 const collapsed = ref(false);
 const now = ref(new Date());
 let timer = null;
-let healthTimer = null;
 
 const menus = [
   { path: '/dashboard', title: '总览仪表盘', icon: 'DataBoard' },
@@ -74,30 +68,19 @@ const menus = [
   { path: '/users', title: '用户画像', icon: 'User' },
   { path: '/group-buy', title: '拼团业务', icon: 'ShoppingCart' },
   { path: '/agent', title: 'AI 分析报告', icon: 'Cpu' },
-  { path: '/pipeline', title: '数据管道', icon: 'Connection' },
+  { path: '/movie-qa', title: '电影智能问答', icon: 'ChatDotRound' },
+  { path: '/pipeline', title: '数据管道', icon: 'Connection' }, 
 ];
 
 const currentTime = computed(() => now.value.toLocaleString('zh-CN', { hour12: false }));
-const lastHealthStatus = ref('UNKNOWN');
 
 onMounted(() => {
-  healthStore.fetchHealth(true).then(() => {
-    lastHealthStatus.value = healthStore.status;
-  });
   timer = window.setInterval(() => {
     now.value = new Date();
   }, 1000);
-  healthTimer = window.setInterval(async () => {
-    await healthStore.fetchHealth(true);
-    if (lastHealthStatus.value !== healthStore.status) {
-      ElMessage[healthStore.isHealthy ? 'success' : 'warning'](`后端健康状态变更为 ${healthStore.status}`);
-      lastHealthStatus.value = healthStore.status;
-    }
-  }, 30000);
 });
 
 onBeforeUnmount(() => {
   window.clearInterval(timer);
-  window.clearInterval(healthTimer);
 });
 </script>

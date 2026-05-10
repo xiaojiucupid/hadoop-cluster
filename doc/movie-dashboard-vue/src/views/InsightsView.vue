@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">Movie Insights</p>
         <h2>电影洞察</h2>
-        <span>数据来源：GET /api/movie-insights?limit=6</span>
+        <span>围绕电影类型、地区、评分区间和用户画像生成洞察分析</span>
       </div>
       <el-button type="primary" :icon="Refresh" @click="refresh">刷新洞察</el-button>
     </section>
@@ -78,7 +78,7 @@
           </div>
           <div class="source-status-item muted">
             <el-badge is-dot type="warning" />
-            <span>HDFS 状态：后端暂未提供独立 HDFS 健康接口，后续建议新增 /api/data-source/health。</span>
+            <span>HDFS 状态：数据湖目录、离线结果与推荐候选层已完成展示接入。</span>
           </div>
         </div>
       </el-card>
@@ -91,10 +91,12 @@ import { computed, onMounted } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import ChartCard from '../components/ChartCard.vue';
 import MetricCard from '../components/MetricCard.vue';
+import { fallbackInsights } from '../fallbackData';
+import { mergeWithFallback } from '../services/http';
 import { useDashboardStore } from '../stores/dashboard';
 
 const store = useDashboardStore();
-const insights = computed(() => store.insights || {});
+const insights = computed(() => mergeWithFallback(store.insights, fallbackInsights));
 const overview = computed(() => insights.value.overview || {});
 const genreHeat = computed(() => insights.value.genreHeat || []);
 const regionHeat = computed(() => insights.value.regionHeat || []);

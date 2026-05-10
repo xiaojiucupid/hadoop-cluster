@@ -30,12 +30,12 @@ public class RecommendationController {
     /**
      * 查询指定用户的个性化推荐列表。
      */
-    @GetMapping("/users/{userId}")
+    @GetMapping("/users/{userKey}")
     public ApiResponse<List<RecommendationDTO>> listUserRecommendations(
-            @PathVariable Long userId,
+            @PathVariable String userKey,
             @RequestParam(defaultValue = "HYBRID") String algorithm,
             @RequestParam(defaultValue = "10") Integer limit) {
-        List<RecommendationDTO> recommendations = recommendationDomainService.listUserRecommendations(userId, algorithm, limit)
+        List<RecommendationDTO> recommendations = recommendationDomainService.listUserRecommendations(userKey, algorithm, limit)
                 .stream()
                 .map(this::toDTO)
                 .toList();

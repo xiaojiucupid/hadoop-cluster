@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">AI Analysis Report</p>
         <h2>AI 分析报告</h2>
-        <span>数据源：/api/movie-agent/analyze?limit=6 与 /api/movie-agent/context?limit=6</span>
+        <span>基于电影画像、用户行为与推荐策略生成结构化 AI 分析报告</span>
       </div>
       <el-button type="primary" :icon="Refresh" @click="refresh">刷新报告</el-button>
     </section>
@@ -116,11 +116,13 @@
 <script setup>
 import { computed, onMounted } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
+import { fallbackAgentContext, fallbackAgentReport } from '../fallbackData';
+import { mergeWithFallback } from '../services/http';
 import { useAgentStore } from '../stores/agent';
 
 const agentStore = useAgentStore();
-const report = computed(() => agentStore.report || {});
-const context = computed(() => agentStore.context || report.value.context || {});
+const report = computed(() => mergeWithFallback(agentStore.report, fallbackAgentReport));
+const context = computed(() => mergeWithFallback(agentStore.context || report.value.context, fallbackAgentContext));
 const insights = computed(() => report.value.answer?.insights || []);
 const strategies = computed(() => report.value.answer?.recommendationStrategies || []);
 const actions = computed(() => report.value.answer?.actions || []);

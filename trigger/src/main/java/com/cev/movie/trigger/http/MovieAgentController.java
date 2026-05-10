@@ -60,8 +60,8 @@ public class MovieAgentController {
                 userId,
                 userMd5,
                 buildMetrics(),
-                buildRecommendations(userId, limit),
-                buildTagPreferences(userId, limit),
+                buildRecommendations(userId, userMd5, limit),
+                buildTagPreferences(userMd5, limit),
                 buildRatingDistribution(),
                 buildRegionDistribution(limit)
         );
@@ -97,45 +97,45 @@ public class MovieAgentController {
         return metrics;
     }
 
-    private List<MovieAgentDTO.MovieRecommendationParamDTO> buildRecommendations(Long userId, int limit) {
+    private List<MovieAgentDTO.MovieRecommendationParamDTO> buildRecommendations(Long userId, String userMd5, int limit) {
         if (tableExists("rec_user_movie_topn") && countExistingTable("rec_user_movie_topn") > 0) {
-            String sql = userId == null
+            String sql = userMd5 == null
                     ? """
-                    SELECT movie_id, movie_name, recommend_score, reason, 'MAPREDUCE_HYBRID' AS algorithm_type
+                    SELECT movie_id, movie_name, recommend_score, reason, algorithm_type, rank_no
                     FROM rec_user_movie_topn
-                    ORDER BY recommend_score DESC
+                    ORDER BY recommend_score DESC, rank_no ASC
                     LIMIT ?
                     """
                     : """
-                    SELECT movie_id, movie_name, recommend_score, reason, 'MAPREDUCE_HYBRID' AS algorithm_type, rank_no
+                    SELECT movie_id, movie_name, recommend_score, reason, algorithm_type, rank_no
                     FROM rec_user_movie_topn
-                    WHERE user_id = ?
+                    WHERE user_md5 = ?
                     ORDER BY rank_no ASC, recommend_score DESC
                     LIMIT ?
                     """;
-            Object[] args = userId == null ? new Object[]{limit} : new Object[]{userId, limit};
+            Object[] args = userMd5 == null ? new Object[]{limit} : new Object[]{userMd5, limit};
             return jdbcTemplate.query(sql, (rs, rowNum) -> new MovieAgentDTO.MovieRecommendationParamDTO(
                     rs.getLong("movie_id"),
                     rs.getString("movie_name"),
                     rs.getBigDecimal("recommend_score"),
                     rs.getString("reason"),
                     rs.getString("algorithm_type"),
-                    userId == null ? rowNum + 1 : rs.getInt("rank_no")
+                    userMd5 == null ? rowNum + 1 : rs.getInt("rank_no")
             ), args);
         }
         if (tableExists("recommendation_result") && countExistingTable("recommendation_result") > 0) {
             String sql = userId == null
                     ? """
-                    SELECT movie_id, movie_title AS movie_name, recommend_score, reason, algorithm_type, rank_no
+                    SELECT movie_id, movie_title AS movie_name, recommend_score, reason, algorithm_type
                     FROM recommendation_result
                     ORDER BY recommend_score DESC
                     LIMIT ?
                     """
                     : """
-                    SELECT movie_id, movie_title AS movie_name, recommend_score, reason, algorithm_type, rank_no
+                    SELECT movie_id, movie_title AS movie_name, recommend_score, reason, algorithm_type
                     FROM recommendation_result
                     WHERE user_id = ?
-                    ORDER BY rank_no ASC, recommend_score DESC
+                    ORDER BY recommend_score DESC
                     LIMIT ?
                     """;
             Object[] args = userId == null ? new Object[]{limit} : new Object[]{userId, limit};
@@ -145,7 +145,7 @@ public class MovieAgentController {
                     rs.getBigDecimal("recommend_score"),
                     rs.getString("reason"),
                     rs.getString("algorithm_type"),
-                    rs.getInt("rank_no")
+                    rowNum + 1
             ), args);
         }
         if (!tableExists("dim_movie")) {
@@ -174,23 +174,23 @@ public class MovieAgentController {
         );
     }
 
-    private List<MovieAgentDTO.NameValueParamDTO> buildTagPreferences(Long userId, int limit) {
+    private List<MovieAgentDTO.NameValueParamDTO> buildTagPreferences(String userMd5, int limit) {
         if (!tableExists("bridge_movie_tag")) {
             return List.of();
         }
-        if (userId != null && tableExists("fact_rating")) {
+        if (userMd5 != null && tableExists("fact_rating")) {
             List<MovieAgentDTO.NameValueParamDTO> rows = jdbcTemplate.query(
                     """
                     SELECT bmt.tag_name AS name, COUNT(*) AS value
                     FROM fact_rating fr
                     JOIN bridge_movie_tag bmt ON bmt.movie_id = fr.movie_id
-                    WHERE fr.user_id = ? AND fr.rating >= 4 AND bmt.tag_name IS NOT NULL AND bmt.tag_name <> ''
+                    WHERE fr.user_md5 = ? AND fr.rating >= 4 AND bmt.tag_name IS NOT NULL AND bmt.tag_name <> ''
                     GROUP BY bmt.tag_name
                     ORDER BY value DESC
                     LIMIT ?
                     """,
                     (rs, rowNum) -> new MovieAgentDTO.NameValueParamDTO(rs.getString("name"), rs.getBigDecimal("value")),
-                    userId,
+                    userMd5,
                     limit
             );
             if (!rows.isEmpty()) {
@@ -228,15 +228,15 @@ public class MovieAgentController {
     }
 
     private List<MovieAgentDTO.NameValueParamDTO> buildRegionDistribution(int limit) {
-        if (!tableExists("dim_movie")) {
+        if (!tableExists("bridge_movie_region")) {
             return List.of();
         }
         return jdbcTemplate.query(
                 """
-                SELECT region AS name, COUNT(*) AS value
-                FROM dim_movie
-                WHERE region IS NOT NULL AND region <> ''
-                GROUP BY region
+                SELECT region_name AS name, COUNT(DISTINCT movie_id) AS value
+                FROM bridge_movie_region
+                WHERE region_name IS NOT NULL AND region_name <> ''
+                GROUP BY region_name
                 ORDER BY value DESC
                 LIMIT ?
                 """,
@@ -292,7 +292,7 @@ public class MovieAgentController {
         if (userId == null || !tableExists("dim_user")) {
             return null;
         }
-        List<String> rows = jdbcTemplate.query("SELECT user_md5 FROM dim_user WHERE user_id = ? LIMIT 1",
+        List<String> rows = jdbcTemplate.query("SELECT user_md5 FROM dim_user WHERE user_sk = ? LIMIT 1",
                 (rs, rowNum) -> rs.getString("user_md5"), userId);
         return rows.isEmpty() ? null : rows.get(0);
     }

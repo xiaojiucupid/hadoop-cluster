@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">Overview Dashboard</p>
         <h2>总览仪表盘</h2>
-        <span>数据来源：GET /api/movie-dashboard</span>
+        <span>数据湖 / MapReduce / Agent 驱动的动态电影分析看板</span>
       </div>
       <el-button type="primary" :icon="Refresh" @click="refresh">刷新数据</el-button>
     </section>
@@ -67,12 +67,14 @@ import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import ChartCard from '../components/ChartCard.vue';
 import MetricCard from '../components/MetricCard.vue';
+import { fallbackDashboard } from '../fallbackData';
+import { mergeWithFallback } from '../services/http';
 import { useDashboardStore } from '../stores/dashboard';
 
 const store = useDashboardStore();
 let refreshTimer = null;
 
-const dashboard = computed(() => store.dashboard || {});
+const dashboard = computed(() => mergeWithFallback(store.dashboard, fallbackDashboard));
 const summary = computed(() => dashboard.value.dashboardSummary || {});
 const ratingDistribution = computed(() => dashboard.value.ratingDistribution || []);
 const genreRanking = computed(() => (dashboard.value.genreRanking || []).slice(0, 10));

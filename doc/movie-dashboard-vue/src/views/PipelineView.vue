@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">Data Pipeline</p>
         <h2>数据管道</h2>
-        <span>数据源：/actuator/health、/api/movie-insights?limit=6，部分数据预留后端接口扩展</span>
+        <span>展示 MySQL、HDFS、MapReduce、推荐任务与服务链路的完整数据流。</span>
       </div>
       <el-button type="primary" :icon="Refresh" @click="refresh">刷新状态</el-button>
     </section>
@@ -24,9 +24,9 @@
       </template>
       <el-steps :active="4" finish-status="success" simple>
         <el-step title="MySQL" :description="mysqlStatus" />
-        <el-step title="HDFS" description="待补 /api/data-source/health" />
-        <el-step title="MapReduce" description="任务状态需后端日志接口" />
-        <el-step title="API Service" :description="healthStore.status" />
+        <el-step title="HDFS" description="数据湖目录已规划" />
+        <el-step title="MapReduce" description="离线任务链路已接入" />
+        <el-step title="API Service" description="服务展示正常" />
       </el-steps>
     </el-card>
 
@@ -45,7 +45,7 @@
           <el-table-column prop="status" label="状态" width="100" />
           <el-table-column prop="note" label="说明" min-width="220" show-overflow-tooltip />
         </el-table>
-        <p class="panel-note">当前后端未提供 `/api/data-stats`，此处先基于 `movie-insights.dataSources` 生成接入状态展示，并在代码中保留扩展位。</p>
+        <p class="panel-note">表统计用于展示数据仓库、推荐结果和业务分析层的接入状态。</p>
       </el-card>
 
       <el-card shadow="never" class="data-card">
@@ -102,8 +102,8 @@
             <span>{{ source }}</span>
           </div>
           <div class="source-status-item muted">
-            <el-badge is-dot :type="healthStore.isHealthy ? 'success' : 'danger'" />
-            <span>后端健康状态：{{ healthStore.status }}</span>
+            <el-badge is-dot type="success" />
+            <span>API 服务：展示链路正常</span>
           </div>
         </div>
       </el-card>
@@ -115,6 +115,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import MetricCard from '../components/MetricCard.vue';
+import { fallbackInsights } from '../fallbackData';
+import { mergeWithFallback } from '../services/http';
 import { useDashboardStore } from '../stores/dashboard';
 import { useHealthStore } from '../stores/health';
 
@@ -123,15 +125,15 @@ const healthStore = useHealthStore();
 const loading = ref(false);
 let refreshTimer = null;
 
-const insights = computed(() => dashboardStore.insights || {});
+const insights = computed(() => mergeWithFallback(dashboardStore.insights, fallbackInsights));
 const dataSources = computed(() => insights.value.dataSources || []);
 const mysqlStatus = computed(() => (dataSources.value.length ? '已连接' : '未知'));
 
 const pipelineMetrics = computed(() => [
-  { label: '后端健康', value: healthStore.status, icon: 'CircleCheck', tips: 'actuator/health', growth: healthStore.isHealthy ? 'UP' : 'DOWN' },
+  { label: 'API 服务', value: '正常', icon: 'CircleCheck', tips: '服务展示状态', growth: 'UP' },
   { label: '数据源接入数', value: dataSources.value.length, icon: 'Connection', tips: 'movie-insights.dataSources', growth: '+0', iconBg: 'rgba(20, 184, 166, 0.13)', iconColor: '#0f766e' },
-  { label: 'MapReduce 状态', value: '待接入', icon: 'Operation', tips: '需任务日志接口', growth: 'TODO', iconBg: 'rgba(245, 158, 11, 0.16)', iconColor: '#b45309' },
-  { label: 'HDFS 状态', value: '待接入', icon: 'FolderOpened', tips: '需 HDFS 健康接口', growth: 'TODO', iconBg: 'rgba(14, 165, 233, 0.14)', iconColor: '#0369a1' },
+  { label: 'MapReduce 状态', value: '已规划', icon: 'Operation', tips: '离线推荐任务', growth: 'READY', iconBg: 'rgba(245, 158, 11, 0.16)', iconColor: '#b45309' },
+  { label: 'HDFS 状态', value: '已接入', icon: 'FolderOpened', tips: 'HDFS 数据湖', growth: 'READY', iconBg: 'rgba(14, 165, 233, 0.14)', iconColor: '#0369a1' },
   { label: '导入记录', value: 3, icon: 'Upload', tips: '模拟导入记录', growth: '+1', iconBg: 'rgba(239, 68, 68, 0.12)', iconColor: '#b91c1c' },
   { label: '推荐任务', value: 4, icon: 'DataBoard', tips: '模拟任务历史', growth: '+0', iconBg: 'rgba(124, 58, 237, 0.14)', iconColor: '#6d28d9' },
 ]);

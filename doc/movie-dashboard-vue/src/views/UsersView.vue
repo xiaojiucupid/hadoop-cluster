@@ -47,13 +47,15 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import ChartCard from '../components/ChartCard.vue';
 import MetricCard from '../components/MetricCard.vue';
+import { fallbackDashboard, fallbackInsights } from '../fallbackData';
+import { mergeWithFallback } from '../services/http';
 import { useDashboardStore } from '../stores/dashboard';
 
 const router = useRouter();
 const store = useDashboardStore();
 const keyword = ref('');
-const dashboard = computed(() => store.dashboard || {});
-const insights = computed(() => store.insights || {});
+const dashboard = computed(() => mergeWithFallback(store.dashboard, fallbackDashboard));
+const insights = computed(() => mergeWithFallback(store.insights, fallbackInsights));
 const summary = computed(() => dashboard.value.dashboardSummary || {});
 const userProfiles = computed(() => insights.value.userPreferences || []);
 const formatNumber = (value) => new Intl.NumberFormat('zh-CN').format(Number(value ?? 0));

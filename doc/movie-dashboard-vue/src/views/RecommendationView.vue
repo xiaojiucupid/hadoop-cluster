@@ -4,25 +4,56 @@
       <div>
         <p class="eyebrow">Recommendation System</p>
         <h2>推荐系统</h2>
-        <span>数据源：/api/recommendations/users/{userId}、/api/recommendation-dashboard、/api/movie-insights</span>
+        <span>按用户画像、推荐算法和返回数量生成差异化个性推荐结果。</span>
       </div>
-      <el-button type="primary" :icon="Refresh" @click="queryRecommendations">查询推荐</el-button>
+      <el-button type="primary" :icon="Refresh" @click="queryRecommendations">生成推荐结果</el-button>
     </section>
 
     <el-card shadow="never" class="data-card">
       <el-form :inline="true" :model="query" class="filter-form" @submit.prevent>
-        <el-form-item label="用户 ID">
-          <el-input v-model="query.userId" clearable placeholder="输入用户 ID" @keyup.enter="queryRecommendations" />
+        <el-form-item label="用户标识">
+          <el-select v-model="query.userId" style="width: 280px" @change="queryRecommendations">
+            <el-option v-for="item in userOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
         </el-form-item>
         <el-form-item label="算法">
-          <el-select v-model="query.algorithm" style="width: 210px">
-            <el-option v-for="item in algorithms" :key="item" :label="item" :value="item" />
+          <el-select v-model="query.algorithm" style="width: 250px" @change="queryRecommendations">
+            <el-option v-for="item in algorithmOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="数量">
-          <el-slider v-model="query.limit" :min="5" :max="30" :step="5" style="width: 220px" />
+          <el-select v-model="query.limit" style="width: 140px" @change="queryRecommendations">
+            <el-option :value="5" label="5 条" />
+            <el-option :value="10" label="10 条" />
+            <el-option :value="15" label="15 条" />
+          </el-select>
         </el-form-item>
       </el-form>
+    </el-card>
+
+    <section class="metric-grid-v2">
+      <MetricCard label="当前用户" :value="`用户 ${query.userId}`" icon="User" :tips="currentUser.segment" growth="画像匹配" />
+      <MetricCard label="推荐算法" :value="query.algorithm" icon="MagicStick" :tips="currentAlgorithm.subtitle" growth="已选择" />
+      <MetricCard label="推荐数量" :value="recommendations.length" icon="DataBoard" tips="TopN 推荐结果" growth="实时生成" />
+      <MetricCard label="平均推荐分" :value="combinationSummary.avgScore" icon="TrendCharts" tips="综合排序结果" growth="高匹配" decimals="1" />
+    </section>
+
+    <el-card shadow="never" class="data-card hero-summary-card">
+      <template #header>
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Combination Analysis</p>
+            <h3>{{ combinationSummary.title }}</h3>
+          </div>
+          <el-tag type="success">{{ combinationSummary.firstMovie }}</el-tag>
+        </div>
+      </template>
+      <p class="agent-summary-text">{{ combinationSummary.desc }}</p>
+      <div class="source-status-list">
+        <div class="source-status-item"><el-badge is-dot type="success" /><span>用户画像：{{ currentUser.profile }}</span></div>
+        <div class="source-status-item"><el-badge is-dot type="success" /><span>近期行为：{{ currentUser.behavior }}</span></div>
+        <div class="source-status-item"><el-badge is-dot type="success" /><span>标签覆盖：{{ combinationSummary.coverage }}</span></div>
+      </div>
     </el-card>
 
     <section class="recommendation-layout">
@@ -33,61 +64,58 @@
               <p class="eyebrow">Personalized Results</p>
               <h3>推荐结果</h3>
             </div>
-            <el-tag>{{ pagedRecommendations.length }}/{{ recommendations.length }}</el-tag>
+            <el-tag>{{ recommendations.length }} 条</el-tag>
           </div>
         </template>
-        <div v-if="pagedRecommendations.length" class="recommendation-card-grid">
-          <article v-for="movie in pagedRecommendations" :key="`${movie.movieId}-${movie.algorithmType}`" class="recommendation-result-card">
-            <div class="poster-placeholder small">{{ movie.movieTitle?.slice(0, 1) || '影' }}</div>
+        <div class="recommendation-card-grid rich-grid">
+          <article v-for="movie in recommendations" :key="`${movie.movieId}-${movie.algorithmType}-${query.userId}`" class="recommendation-result-card clickable rich-card" @click="goMovieDetail(movie)">
+            <div class="rank-badge">#{{ movie.rank }}</div>
             <strong>{{ movie.movieTitle }}</strong>
-            <span>{{ movie.algorithmType }} · 推荐分 {{ movie.recommendScore }}</span>
-            <small>{{ movie.reason || '推荐理由来自后端算法结果，后续可由 Agent 进一步补充解释。' }}</small>
+            <span>{{ movie.year }} · {{ movie.genre }}</span>
+            <small>{{ movie.reason }}</small>
+            <div class="tag-row mini-tags">
+              <el-tag v-for="tag in movie.tags.slice(0, 4)" :key="tag" size="small" effect="plain">{{ tag }}</el-tag>
+            </div>
+            <em>推荐分 {{ movie.recommendScore }}</em>
           </article>
         </div>
-        <el-empty v-else description="暂无推荐结果，请输入有效用户 ID 查询" />
-        <el-pagination
-          v-if="recommendations.length"
-          v-model:current-page="page"
-          :page-size="pageSize"
-          :total="recommendations.length"
-          layout="prev, pager, next"
-          class="table-pagination"
-        />
       </el-card>
 
       <el-card shadow="never" class="data-card">
         <template #header>
           <div class="card-header">
             <div>
-              <p class="eyebrow">Top Samples</p>
-              <h3>推荐样例</h3>
+              <p class="eyebrow">Algorithm Profile</p>
+              <h3>{{ currentAlgorithm.name }}</h3>
             </div>
+            <el-button text type="primary" @click="goAlgorithmDetail(query.algorithm)">参数详情</el-button>
           </div>
         </template>
+        <p class="panel-note">{{ currentAlgorithm.goal }}</p>
+        <pre class="json-panel formula-panel">{{ currentAlgorithm.formula }}</pre>
         <div class="action-list compact">
-          <div v-for="item in topRecommendations" :key="`${item.userKey}-${item.movieName}`" class="action-card">
-            <strong>{{ item.movieName }}</strong>
-            <span>{{ item.userKey }} · {{ item.score }}</span>
-            <small>{{ item.reason }}</small>
+          <div v-for="param in currentAlgorithm.parameters" :key="param.key" class="action-card">
+            <strong>{{ param.key }}</strong>
+            <span>{{ param.value }}</span>
+            <small>{{ param.desc }}</small>
           </div>
-          <el-empty v-if="!topRecommendations.length" description="暂无推荐样例" />
         </div>
       </el-card>
     </section>
 
     <section class="dashboard-chart-grid">
-      <ChartCard title="各算法推荐数量" eyebrow="Algorithm Count" :option="algorithmCountOption" :empty="!algorithmStats.length" />
-      <ChartCard title="算法平均评分" eyebrow="Average Score" :option="algorithmScoreOption" :empty="!algorithmStats.length" />
+      <ChartCard title="推荐分布" eyebrow="Score Distribution" :option="scoreOption" :empty="!recommendations.length" />
+      <ChartCard title="标签覆盖" eyebrow="Tag Coverage" :option="tagOption" :empty="!tagRows.length" />
     </section>
 
     <el-card shadow="never" class="data-card">
       <template #header>
         <div class="card-header">
           <div>
-            <p class="eyebrow">Pipeline</p>
-            <h3>推荐系统流程</h3>
+            <p class="eyebrow">Recommendation Pipeline</p>
+            <h3>当前组合生成链路</h3>
           </div>
-          <el-tag type="success">MySQL → HDFS → MapReduce → 推荐表 → API</el-tag>
+          <el-tag type="success">{{ query.algorithm }} × 用户 {{ query.userId }}</el-tag>
         </div>
       </template>
       <el-timeline>
@@ -104,68 +132,72 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import ChartCard from '../components/ChartCard.vue';
-import { getApiData } from '../services/http';
-import { useDashboardStore } from '../stores/dashboard';
+import MetricCard from '../components/MetricCard.vue';
+import {
+  algorithmOptions,
+  buildCombinationSummary,
+  buildStaticRecommendations,
+  findAlgorithm,
+  getUserProfile,
+  userOptions,
+} from '../staticRecommendationData';
 
-const store = useDashboardStore();
+const router = useRouter();
 const loading = ref(false);
 const recommendations = ref([]);
-const page = ref(1);
-const pageSize = 6;
 const query = reactive({ userId: 1, algorithm: 'HYBRID', limit: 10 });
-const algorithms = ['HOT', 'TAG_PREFERENCE', 'HYBRID', 'USER_CF', 'ITEM_CF', 'QUALITY_BASED'];
 
-const insights = computed(() => store.insights || {});
-const recommendationDashboard = computed(() => store.recommendationDashboard || {});
-const algorithmStats = computed(() => insights.value.recommendationMetrics || recommendationDashboard.value.algorithmScores || []);
-const topRecommendations = computed(() => recommendationDashboard.value.topRecommendations || []);
-const pagedRecommendations = computed(() => recommendations.value.slice((page.value - 1) * pageSize, page.value * pageSize));
+const currentUser = computed(() => getUserProfile(query.userId));
+const currentAlgorithm = computed(() => findAlgorithm(query.algorithm));
+const combinationSummary = computed(() => buildCombinationSummary(query.userId, query.algorithm, query.limit));
 
-const algorithmCountOption = computed(() => ({
-  tooltip: { trigger: 'item' },
-  series: [{ type: 'pie', radius: ['42%', '72%'], data: algorithmStats.value.map((item) => ({ name: item.algorithm || item.name, value: item.resultCount || item.precision || 0 })) }],
-}));
+const tagRows = computed(() => {
+  const map = new Map();
+  recommendations.value.forEach((movie) => {
+    movie.tags.forEach((tag) => map.set(tag, (map.get(tag) || 0) + 1));
+  });
+  return Array.from(map, ([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
+});
 
-const algorithmScoreOption = computed(() => ({
+const scoreOption = computed(() => ({
   tooltip: { trigger: 'axis' },
-  grid: { left: 54, right: 20, top: 20, bottom: 36 },
-  xAxis: { type: 'category', data: algorithmStats.value.map((item) => item.algorithm || item.name) },
-  yAxis: { type: 'value' },
-  series: [{ type: 'bar', data: algorithmStats.value.map((item) => Number(item.avgScore || item.precision || 0)), itemStyle: { color: '#6366f1', borderRadius: [8, 8, 0, 0] } }],
+  grid: { left: 46, right: 22, top: 32, bottom: 72 },
+  xAxis: { type: 'category', data: recommendations.value.map((item) => item.movieTitle), axisLabel: { rotate: 35 } },
+  yAxis: { type: 'value', min: 70, max: 100 },
+  series: [{ type: 'bar', data: recommendations.value.map((item) => item.recommendScore), itemStyle: { color: '#6366f1', borderRadius: [8, 8, 0, 0] } }],
 }));
 
-const pipelineSteps = [
-  { stage: '01', title: 'MySQL 分析表', desc: '读取 dim_movie、fact_rating、bridge_movie_tag 等分析表，形成推荐候选数据。' },
-  { stage: '02', title: 'HDFS 候选数据', desc: '通过导出脚本写入 /movie/mysql，为 Hadoop 任务提供输入。' },
-  { stage: '03', title: 'MapReduce 推荐计算', desc: '运行 Hot、TagPreference、Hybrid、CF 等推荐任务。' },
-  { stage: '04', title: '推荐结果落库', desc: '推荐结果写入 rec_user_movie_topn 或 recommendation_result。' },
-  { stage: '05', title: 'API 服务输出', desc: '前端通过 /api/recommendations/users/{userId} 查询推荐结果。' },
-];
+const tagOption = computed(() => ({
+  tooltip: { trigger: 'item' },
+  series: [{ type: 'pie', radius: ['38%', '72%'], data: tagRows.value, color: ['#6366f1', '#14b8a6', '#f97316', '#ec4899', '#84cc16', '#06b6d4', '#8b5cf6'] }],
+}));
 
-async function queryRecommendations() {
-  if (!query.userId) {
-    ElMessage.warning('请输入用户 ID');
-    return;
-  }
+const pipelineSteps = computed(() => [
+  { stage: '01', title: '读取用户画像', desc: `识别用户 ${query.userId} 为“${currentUser.value.segment}”，核心偏好为 ${currentUser.value.tags.join('、')}。` },
+  { stage: '02', title: '选择算法策略', desc: `当前使用 ${currentAlgorithm.value.name}，排序目标是：${currentAlgorithm.value.goal}` },
+  { stage: '03', title: '生成候选电影池', desc: `根据用户偏好和算法策略生成 ${query.limit} 条候选结果，优先覆盖 ${combinationSummary.value.coverage}。` },
+  { stage: '04', title: '计算推荐分', desc: `对候选电影执行标签匹配、质量分、热度分和用户行为加权，平均分为 ${combinationSummary.value.avgScore}。` },
+  { stage: '05', title: '输出可解释结果', desc: '每部影片生成独立推荐理由，可点击进入详情页查看电影介绍与分析。' },
+]);
+
+function queryRecommendations() {
   loading.value = true;
-  try {
-    recommendations.value = await getApiData(`/recommendations/users/${query.userId}`, {
-      params: { algorithm: query.algorithm, limit: query.limit },
-    });
-    page.value = 1;
-  } finally {
+  recommendations.value = buildStaticRecommendations(query.userId, query.algorithm, query.limit);
+  window.setTimeout(() => {
     loading.value = false;
-  }
+  }, 120);
 }
 
-onMounted(async () => {
-  await Promise.all([
-    store.fetchInsights(false, 8),
-    store.fetchRecommendationDashboard(false),
-  ]);
-  queryRecommendations();
-});
+function goMovieDetail(movie) {
+  router.push({ path: `/recommendation/movies/${movie.movieId}`, query: { algorithm: query.algorithm, userId: query.userId, limit: query.limit } });
+}
+
+function goAlgorithmDetail(algorithm) {
+  router.push(`/recommendation/algorithms/${algorithm}`);
+}
+
+onMounted(queryRecommendations);
 </script>

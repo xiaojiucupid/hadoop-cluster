@@ -5,11 +5,14 @@ const routes = [
   { path: '/dashboard', name: 'Dashboard', component: () => import('../views/DashboardView.vue'), meta: { title: '总览仪表盘' } },
   { path: '/insights', name: 'Insights', component: () => import('../views/InsightsView.vue'), meta: { title: '电影洞察' } },
   { path: '/recommendation', name: 'Recommendation', component: () => import('../views/RecommendationView.vue'), meta: { title: '推荐系统' } },
+  { path: '/recommendation/movies/:id', name: 'RecommendationMovieDetail', component: () => import('../views/RecommendationMovieDetailView.vue'), meta: { title: '推荐电影详情' } },
+  { path: '/recommendation/algorithms/:name', name: 'AlgorithmDetail', component: () => import('../views/AlgorithmDetailView.vue'), meta: { title: '算法参数中心' } },
   { path: '/users', name: 'Users', component: () => import('../views/UsersView.vue'), meta: { title: '用户画像' } },
   { path: '/users/:id', name: 'UserDetail', component: () => import('../views/UserDetailView.vue'), meta: { title: '用户详情' } },
   { path: '/group-buy', name: 'GroupBuy', component: () => import('../views/GroupBuyView.vue'), meta: { title: '拼团业务' } },
   { path: '/agent', name: 'Agent', component: () => import('../views/AgentView.vue'), meta: { title: 'AI 分析报告' } },
-  { path: '/pipeline', name: 'Pipeline', component: () => import('../views/PipelineView.vue'), meta: { title: '数据管道' } },
+  { path: '/movie-qa', name: 'MovieQa', component: () => import('../views/MovieQaView.vue'), meta: { title: '电影智能问答' } },
+  { path: '/pipeline', name: 'Pipeline', component: () => import('../views/PipelineView.vue'), meta: { title: '数据管道' } }, 
 ];
 
 const router = createRouter({

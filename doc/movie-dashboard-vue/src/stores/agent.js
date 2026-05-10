@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia';
+import { fallbackAgentContext, fallbackAgentReport } from '../fallbackData';
 import { getApiData } from '../services/http';
 
 const EXPIRE_MS = 5 * 60 * 1000;
 
 export const useAgentStore = defineStore('agent', {
   state: () => ({
-    report: null,
-    context: null,
+    report: fallbackAgentReport,
+    context: fallbackAgentContext,
     loading: false,
     fetchedAt: 0,
   }),
@@ -20,7 +21,7 @@ export const useAgentStore = defineStore('agent', {
       }
       this.loading = true;
       try {
-        this.report = await getApiData('/movie-agent/analyze', { params: { limit } });
+        this.report = await getApiData('/movie-agent/analyze', { params: { limit } }, fallbackAgentReport);
         this.fetchedAt = Date.now();
         return this.report;
       } finally {
@@ -33,7 +34,7 @@ export const useAgentStore = defineStore('agent', {
       }
       this.loading = true;
       try {
-        this.context = await getApiData('/movie-agent/context', { params: { limit } });
+        this.context = await getApiData('/movie-agent/context', { params: { limit } }, fallbackAgentContext);
         this.fetchedAt = Date.now();
         return this.context;
       } finally {

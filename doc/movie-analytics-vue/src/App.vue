@@ -8,9 +8,9 @@ import {
   featureWeights,
   hadoopJobs,
   hdfsLayers,
-  mapReduceFlow,
-  precisionTrend,
-  recallFunnel,
+  mapReduceFlow as initialMapReduceFlow,
+  precisionTrend as initialPrecisionTrend,
+  recallFunnel as initialRecallFunnel,
   recommendationCards,
   recommendationSegments,
   tagPreferenceData,
@@ -20,10 +20,10 @@ import {
 const dashboard = reactive({
   recommendationCards,
   algorithmScores,
-  recallFunnel,
+  recallFunnel: initialRecallFunnel,
   tagPreferenceData,
-  precisionTrend,
-  mapReduceFlow,
+  precisionTrend: initialPrecisionTrend,
+  mapReduceFlow: initialMapReduceFlow,
   hadoopJobs,
   recommendationSegments,
   featureWeights,
@@ -34,15 +34,13 @@ const dashboard = reactive({
 const loading = ref(true);
 const apiError = ref('');
 
-const chartRefs = {
-  algorithmRadar: ref(null),
-  recallFunnel: ref(null),
-  tagPreference: ref(null),
-  precisionTrend: ref(null),
-  mapReduceFlow: ref(null),
-  featureWeightHeatmap: ref(null),
-  userSegmentPie: ref(null),
-};
+const algorithmRadar = ref(null);
+const recallFunnel = ref(null);
+const tagPreference = ref(null);
+const precisionTrend = ref(null);
+const mapReduceFlow = ref(null);
+const featureWeightHeatmap = ref(null);
+const userSegmentPie = ref(null);
 const chartInstances = [];
 
 const maxGenreValue = computed(() => Math.max(...genreStats.map((item) => item.value)));
@@ -75,11 +73,13 @@ function buildMapReduceGraph() {
   };
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 async function fetchDashboard() {
   loading.value = true;
   apiError.value = '';
   try {
-    const response = await fetch('/api/recommendation-dashboard');
+    const response = await fetch(`${API_BASE_URL}/recommendation-dashboard`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -110,7 +110,7 @@ async function fetchDashboard() {
 onMounted(async () => {
   await fetchDashboard();
   await nextTick();
-  mountChart(chartRefs.algorithmRadar.value, {
+  mountChart(algorithmRadar.value, {
     ...chartTheme,
     tooltip: {},
     legend: { bottom: 0, textStyle: { color: '#cbd5e1' } },

@@ -39,16 +39,28 @@ public class RecommendationDomainService {
      * @return 推荐列表
      */
     public List<Recommendation> listUserRecommendations(Long userId, String algorithm, int limit) {
+        return listUserRecommendations(String.valueOf(userId), algorithm, limit);
+    }
+
+    /**
+     * 获取用户个性化推荐列表，兼容数值用户 ID 与 rec_user_movie_topn.user_md5。
+     *
+     * @param userKey 用户 ID 或 MD5 标识
+     * @param algorithm 算法类型编码，为空时默认返回 HYBRID 融合推荐
+     * @param limit 返回数量，小于等于 0 时使用默认数量
+     * @return 推荐列表
+     */
+    public List<Recommendation> listUserRecommendations(String userKey, String algorithm, int limit) {
         int queryLimit = limit > 0 ? limit : DEFAULT_RECOMMEND_LIMIT;
         RecommendationAlgorithmType algorithmType = RecommendationAlgorithmType.fromCode(algorithm);
         if (RecommendationAlgorithmType.HYBRID.equals(algorithmType)) {
-            return listHybridRecommendations(userId, queryLimit);
+            return listHybridRecommendations(userKey, queryLimit);
         }
-        return recommendationRepository.findByUserId(userId, algorithmType, queryLimit);
+        return recommendationRepository.findByUserKey(userKey, algorithmType, queryLimit);
     }
 
-    private List<Recommendation> listHybridRecommendations(Long userId, int limit) {
-        List<Recommendation> offlineHybrid = recommendationRepository.findByUserId(userId, RecommendationAlgorithmType.HYBRID, limit);
+    private List<Recommendation> listHybridRecommendations(String userKey, int limit) {
+        List<Recommendation> offlineHybrid = recommendationRepository.findByUserKey(userKey, RecommendationAlgorithmType.HYBRID, limit);
         if (!offlineHybrid.isEmpty()) {
             return offlineHybrid;
         }
@@ -63,7 +75,7 @@ public class RecommendationDomainService {
                 RecommendationAlgorithmType.USER_CF,
                 RecommendationAlgorithmType.HOT_SCORE
         );
-        List<Recommendation> recalls = recommendationRepository.findByUserIdAndAlgorithms(userId, recallAlgorithms, limit);
+        List<Recommendation> recalls = recommendationRepository.findByUserKeyAndAlgorithms(userKey, recallAlgorithms, limit);
         return mergeRecalls(recalls, limit);
     }
 

@@ -24,6 +24,16 @@ public interface RecommendationRepository {
     List<Recommendation> findByUserId(Long userId, RecommendationAlgorithmType algorithmType, int limit);
 
     /**
+     * 查询指定用户标识的推荐列表，兼容 rec_user_movie_topn.user_md5。
+     *
+     * @param userKey 用户数值 ID 或 MD5 标识
+     * @param algorithmType 算法类型
+     * @param limit 返回数量
+     * @return 推荐结果列表
+     */
+    List<Recommendation> findByUserKey(String userKey, RecommendationAlgorithmType algorithmType, int limit);
+
+    /**
      * 查询指定用户在多种算法下的推荐结果，用于后端做融合、兜底和多路召回编排。
      *
      * @param userId 用户 ID
@@ -32,4 +42,14 @@ public interface RecommendationRepository {
      * @return 推荐结果列表
      */
     List<Recommendation> findByUserIdAndAlgorithms(Long userId, List<RecommendationAlgorithmType> algorithmTypes, int limitPerAlgorithm);
+
+    /**
+     * 查询指定用户标识在多种算法下的推荐结果，兼容 rec_user_movie_topn.user_md5。
+     *
+     * @param userKey 用户数值 ID 或 MD5 标识
+     * @param algorithmTypes 算法类型集合
+     * @param limitPerAlgorithm 每种算法最多返回条数
+     * @return 推荐结果列表
+     */
+    List<Recommendation> findByUserKeyAndAlgorithms(String userKey, List<RecommendationAlgorithmType> algorithmTypes, int limitPerAlgorithm);
 }

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 推荐系统大屏联调接口。
@@ -29,27 +30,28 @@ public class RecommendationDashboardController {
 
     @GetMapping
     public ApiResponse<RecommendationDashboardDTO> dashboard() {
+        Map<String, Long> metrics = loadCachedMetrics();
         return ApiResponse.success(new RecommendationDashboardDTO(
-                buildMetricCards(),
+                buildMetricCards(metrics),
                 buildAlgorithmScores(),
-                buildRecallFunnel(),
+                buildRecallFunnel(metrics),
                 buildTagPreferences(),
                 buildPrecisionTrend(),
                 buildMapReduceFlow(),
-                buildHadoopJobs(),
+                buildHadoopJobs(metrics),
                 buildUserSegments(),
                 buildFeatureWeights(),
                 buildTopRecommendations(),
-                buildHdfsLayers(),
+                buildHdfsLayers(metrics),
                 buildAlgorithmPipeline()
         ));
     }
 
-    private List<RecommendationDashboardDTO.MetricCardDTO> buildMetricCards() {
-        long userCount = countTable("dim_user");
-        long movieCount = countTable("dim_movie");
-        long ratingCount = countTable("fact_rating");
-        long tagBridgeCount = countTable("bridge_movie_tag");
+    private List<RecommendationDashboardDTO.MetricCardDTO> buildMetricCards(Map<String, Long> metrics) {
+        long userCount = metrics.getOrDefault("user_count", 0L);
+        long movieCount = metrics.getOrDefault("movie_count", 0L);
+        long ratingCount = metrics.getOrDefault("rating_count", 0L);
+        long tagBridgeCount = metrics.getOrDefault("tag_bridge_count", 0L);
         return List.of(
                 new RecommendationDashboardDTO.MetricCardDTO("推荐覆盖用户", formatNumber(userCount), "+" + percentage(userCount, Math.max(userCount + 12000, 1)) + "%", "blue"),
                 new RecommendationDashboardDTO.MetricCardDTO("候选电影画像", formatNumber(movieCount), "dim_movie", "purple"),
@@ -67,10 +69,10 @@ public class RecommendationDashboardController {
         );
     }
 
-    private List<RecommendationDashboardDTO.RecallStageDTO> buildRecallFunnel() {
-        long movies = countTable("dim_movie");
-        long qualityMovies = singleLong("SELECT COUNT(*) FROM dim_movie WHERE COALESCE(douban_score, 0) >= 7.5");
-        long tagCandidates = singleLong("SELECT COUNT(DISTINCT movie_id) FROM bridge_movie_tag");
+    private List<RecommendationDashboardDTO.RecallStageDTO> buildRecallFunnel(Map<String, Long> metrics) {
+        long movies = metrics.getOrDefault("movie_count", 0L);
+        long qualityMovies = metrics.getOrDefault("quality_movie_count", 0L);
+        long tagCandidates = metrics.getOrDefault("tag_candidate_count", 0L);
         return List.of(
                 new RecommendationDashboardDTO.RecallStageDTO("全量电影池", movies),
                 new RecommendationDashboardDTO.RecallStageDTO("质量过滤", qualityMovies),
@@ -82,18 +84,19 @@ public class RecommendationDashboardController {
     }
 
     private List<RecommendationDashboardDTO.TagPreferenceDTO> buildTagPreferences() {
-        List<RecommendationDashboardDTO.TagPreferenceDTO> rows = jdbcTemplate.query(
-                """
-                SELECT tag_name, COUNT(*) AS cnt
-                FROM bridge_movie_tag
-                GROUP BY tag_name
-                ORDER BY cnt DESC
-                LIMIT 8
-                """,
-                (rs, rowNum) -> new RecommendationDashboardDTO.TagPreferenceDTO(rs.getString("tag_name"), Math.max(48, 96 - rowNum * 6))
-        );
-        if (!rows.isEmpty()) {
-            return rows;
+        if (tableExists("dashboard_tag_preference_cache")) {
+            List<RecommendationDashboardDTO.TagPreferenceDTO> rows = jdbcTemplate.query(
+                    """
+                    SELECT tag_name, weight
+                    FROM dashboard_tag_preference_cache
+                    ORDER BY sort_no ASC, weight DESC
+                    LIMIT 8
+                    """,
+                    (rs, rowNum) -> new RecommendationDashboardDTO.TagPreferenceDTO(rs.getString("tag_name"), rs.getInt("weight"))
+            );
+            if (!rows.isEmpty()) {
+                return rows;
+            }
         }
         return List.of(
                 new RecommendationDashboardDTO.TagPreferenceDTO("剧情", 96),
@@ -130,12 +133,12 @@ public class RecommendationDashboardController {
         );
     }
 
-    private List<RecommendationDashboardDTO.HadoopJobDTO> buildHadoopJobs() {
+    private List<RecommendationDashboardDTO.HadoopJobDTO> buildHadoopJobs(Map<String, Long> metrics) {
         return List.of(
-                new RecommendationDashboardDTO.HadoopJobDTO("HotMovieRecommendationJob", "dim_movie + fact_rating", "rec_hot_movie_topn", "6m 38s", "SUCCESS", formatNumber(Math.max(countTable("dim_movie"), 50000))),
-                new RecommendationDashboardDTO.HadoopJobDTO("QualityBasedRecommendationJob", "dim_movie + fact_comment", "rec_quality_movie_topn", "7m 54s", "SUCCESS", formatNumber(Math.max(countTable("fact_comment"), 68420))),
-                new RecommendationDashboardDTO.HadoopJobDTO("TagPreferenceRecommendationJob", "fact_rating + bridge_movie_tag", "rec_tag_preference_topn", "13m 05s", "SUCCESS", formatNumber(Math.max(countTable("fact_rating"), 1448360))),
-                new RecommendationDashboardDTO.HadoopJobDTO("HybridRecommendationJob", "hot + quality + tag", "rec_user_movie_topn", "17m 22s", "SUCCESS", formatNumber(Math.max(countTable("dim_user") * 20, 1448360)))
+                new RecommendationDashboardDTO.HadoopJobDTO("HotMovieRecommendationJob", "dim_movie + fact_rating", "rec_hot_movie_topn", "6m 38s", "SUCCESS", formatNumber(Math.max(metrics.getOrDefault("movie_count", 0L), 50000))),
+                new RecommendationDashboardDTO.HadoopJobDTO("QualityBasedRecommendationJob", "dim_movie + fact_comment", "rec_quality_movie_topn", "7m 54s", "SUCCESS", formatNumber(Math.max(metrics.getOrDefault("comment_count", 0L), 68420))),
+                new RecommendationDashboardDTO.HadoopJobDTO("TagPreferenceRecommendationJob", "fact_rating + bridge_movie_tag", "rec_tag_preference_topn", "13m 05s", "SUCCESS", formatNumber(Math.max(metrics.getOrDefault("rating_count", 0L), 1448360))),
+                new RecommendationDashboardDTO.HadoopJobDTO("HybridRecommendationJob", "hot + quality + tag", "rec_user_movie_topn", "17m 22s", "SUCCESS", formatNumber(Math.max(metrics.getOrDefault("user_count", 0L) * 20, 1448360)))
         );
     }
 
@@ -159,7 +162,26 @@ public class RecommendationDashboardController {
     }
 
     private List<RecommendationDashboardDTO.TopRecommendationDTO> buildTopRecommendations() {
-        if (tableExists("rec_user_movie_topn") && countTable("rec_user_movie_topn") > 0) {
+        if (tableExists("dashboard_top_recommendation_cache")) {
+            List<RecommendationDashboardDTO.TopRecommendationDTO> cacheRows = jdbcTemplate.query(
+                    """
+                    SELECT user_label, movie_name, reason, recommend_score
+                    FROM dashboard_top_recommendation_cache
+                    ORDER BY sort_no ASC, recommend_score DESC
+                    LIMIT 5
+                    """,
+                    (rs, rowNum) -> new RecommendationDashboardDTO.TopRecommendationDTO(
+                            rs.getString("user_label"),
+                            rs.getString("movie_name"),
+                            rs.getString("reason"),
+                            rs.getBigDecimal("recommend_score")
+                    )
+            );
+            if (!cacheRows.isEmpty()) {
+                return cacheRows;
+            }
+        }
+        if (tableExists("rec_user_movie_topn") && fastTableHasRows("rec_user_movie_topn")) {
             List<RecommendationDashboardDTO.TopRecommendationDTO> recRows = jdbcTemplate.query(
                     """
                     SELECT user_md5, movie_name, reason, recommend_score
@@ -178,7 +200,7 @@ public class RecommendationDashboardController {
                 return recRows;
             }
         }
-        if (tableExists("recommendation_result") && countTable("recommendation_result") > 0) {
+        if (tableExists("recommendation_result") && fastTableHasRows("recommendation_result")) {
             List<RecommendationDashboardDTO.TopRecommendationDTO> legacyRows = jdbcTemplate.query(
                     """
                     SELECT CAST(user_id AS CHAR) AS user_md5, movie_title AS movie_name, reason, recommend_score
@@ -197,43 +219,18 @@ public class RecommendationDashboardController {
                 return legacyRows;
             }
         }
-        List<RecommendationDashboardDTO.TopRecommendationDTO> rows = jdbcTemplate.query(
-                """
-                SELECT
-                    COALESCE(u.user_md5, 'anonymous') AS user_md5,
-                    m.name AS movie_name,
-                    CONCAT('高评分电影 · 豆瓣 ', COALESCE(m.douban_score, 0), ' · ', COALESCE(t.tag_name, '综合')) AS reason,
-                    ROUND((COALESCE(m.douban_score, 0) * 10) + LOG10(COALESCE(m.douban_votes, 0) + 10), 2) AS score
-                FROM dim_movie m
-                LEFT JOIN bridge_movie_tag t ON t.movie_id = m.movie_id
-                LEFT JOIN dim_user u ON 1 = 1
-                WHERE m.name IS NOT NULL
-                GROUP BY u.user_md5, m.movie_id, m.name, m.douban_score, m.douban_votes, t.tag_name
-                ORDER BY score DESC
-                LIMIT 5
-                """,
-                (rs, rowNum) -> new RecommendationDashboardDTO.TopRecommendationDTO(
-                        maskUser(rs.getString("user_md5")),
-                        rs.getString("movie_name"),
-                        rs.getString("reason"),
-                        rs.getBigDecimal("score")
-                )
-        );
-        if (!rows.isEmpty()) {
-            return rows;
-        }
         return List.of(
                 new RecommendationDashboardDTO.TopRecommendationDTO("u_03a9...c8f1", "星际穿越", "科幻/剧情偏好 + 高评分相似用户", bd("98.7")),
                 new RecommendationDashboardDTO.TopRecommendationDTO("u_7bc1...10a2", "盗梦空间", "ItemCF 相似电影召回", bd("96.4"))
         );
     }
 
-    private List<RecommendationDashboardDTO.HdfsLayerDTO> buildHdfsLayers() {
+    private List<RecommendationDashboardDTO.HdfsLayerDTO> buildHdfsLayers(Map<String, Long> metrics) {
         return List.of(
                 new RecommendationDashboardDTO.HdfsLayerDTO("ODS 原始层", "/movie/ods", "movies / ratings / comments", "8.6GB"),
                 new RecommendationDashboardDTO.HdfsLayerDTO("DW 明细层", "/movie/dw", "user_movie_score / movie_profile", "4.1GB"),
                 new RecommendationDashboardDTO.HdfsLayerDTO("REC 算法层", "/movie/rec", "candidate / similarity / topn", "2.7GB"),
-                new RecommendationDashboardDTO.HdfsLayerDTO("MySQL 服务层", "movie_analytics", "rec_user_movie_topn", formatNumber(Math.max(countTable("dim_user") * 20, 1)) + " 行")
+                new RecommendationDashboardDTO.HdfsLayerDTO("MySQL 服务层", "movie_analytics", "rec_user_movie_topn", formatNumber(Math.max(metrics.getOrDefault("user_count", 0L) * 20, 1)) + " 行")
         );
     }
 
@@ -246,8 +243,24 @@ public class RecommendationDashboardController {
         );
     }
 
-    private long countTable(String tableName) {
-        return singleLong("SELECT COUNT(*) FROM " + tableName);
+    private Map<String, Long> loadCachedMetrics() {
+        if (!tableExists("dashboard_metric_cache")) {
+            return Map.of();
+        }
+        return jdbcTemplate.query(
+                "SELECT metric_key, metric_value FROM dashboard_metric_cache",
+                rs -> {
+                    java.util.HashMap<String, Long> metrics = new java.util.HashMap<>();
+                    while (rs.next()) {
+                        metrics.put(rs.getString("metric_key"), rs.getLong("metric_value"));
+                    }
+                    return metrics;
+                }
+        );
+    }
+
+    private boolean fastTableHasRows(String tableName) {
+        return singleLong("SELECT 1 FROM " + tableName + " LIMIT 1") == 1L;
     }
 
     private boolean tableExists(String tableName) {
